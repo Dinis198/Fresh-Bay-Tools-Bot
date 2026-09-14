@@ -40,9 +40,11 @@ const commands = [
         .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
 
     new SlashCommandBuilder()
-        .setName('request-rank')
-        .setDescription('Requests a rank update based on your current group status.')
-        .addStringOption(opt => opt.setName('username').setDescription('Your Roblox Username').setRequired(true)),
+        .setName('rank-request')
+        .setDescription('Submit a rank promotion request.')
+        .addStringOption(opt => opt.setName('username').setDescription('Your Roblox Username').setRequired(true))
+        .addStringOption(opt => opt.setName('rank').setDescription('The rank you are applying for').setRequired(true))
+        .addStringOption(opt => opt.setName('reason').setDescription('Why do you deserve this rank?').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('whitelist')
@@ -66,8 +68,14 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roblox.com', { usernames: [username] });
-        return res.data.data && res.data.data[0] ? res.data.data[0].id : null;
-    } catch { return null; }
+        if (res.data && res.data.data && res.data.data.length > 0) {
+            return res.data.data[0].id;
+        }
+        return null;
+    } catch (err) {
+        console.error("Error in getRobloxId:", err.message);
+        return null;
+    }
 }
 
 const banDatabase = new Map();
@@ -79,33 +87,38 @@ client.on('interactionCreate', async interaction => {
     const username = interaction.options.getString('username');
     const robloxId = await getRobloxId(username);
     
-    if (!robloxId) {
+    if (!robloxId && interaction.commandName !== 'test') {
         return interaction.editReply(`❌ User **${username}** not found on Roblox.`);
     }
 
-    if (interaction.commandName === 'request-rank') {
-        try {
-            const groupResponse = await axios.get(`https://roblox.com{robloxId}/groups/roles`);
-            const groupData = groupResponse.data.data.find(g => g.group.id == ROBLOX_GROUP_ID);
+    if (interaction.commandName === 'rank-request') {
+        const targetRank = interaction.options.getString('rank');
+        const reason = interaction.options.getString('reason');
 
-            if (!groupData) return interaction.editReply(`❌ **${username}** is not in the group.`);
+        const embed = new EmbedBuilder()
+            .setTitle('📋 Fresh Bay Tools - New Rank Request')
+            .setColor(0xf39c12)
+            .setDescription(`A new staff application has been submitted!`)
+            .addFields(
+                { name: '👤 Applicant (Discord)', value: `<@${interaction.user.id}>`, inline: true },
+                { name: '🎮 Roblox Account', value: `[${username}](https://roblox.com{robloxId}/profile) (ID: \`${robloxId}\`)`, inline: true },
+                { name: '🚀 Requested Rank', value: targetRank, inline: false },
+                { name: '📝 Reason / Justification', value: reason, inline: false }
+            )
+            .setFooter({ text: 'Fresh Bay Tools Application System' })
+            .setTimestamp();
 
-            const rankName = groupData.role.name;
-            const discordRole = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === rankName.toLowerCase());
+        return interaction.editReply({ embeds: [embed] });
+    }
 
-            if (discordRole) {
-                await interaction.member.roles.add(discordRole);
-                const embed = new EmbedBuilder()
-                    .setTitle('🛡️ Fresh Bay Tools - Rank Requested')
-                    .setColor(0x2ecc71)
-                    .setDescription(`Your rank has been updated on Discord!`)
-                    .addFields({ name: 'Roblox Rank', value: rankName, inline: true }, { name: 'Discord Role', value: `<@&${discordRole.id}>`, inline: true })
-                    .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
-                return interaction.editReply({ embeds: [embed] });
-            } else {
-                return interaction.editReply(`ℹ️ Found rank **${rankName}**, but no matching Discord role exists.`);
-            }
-        } catch (err) { console.error(err); return interaction.editReply(`❌ Error fetching rank.`); }
+    if (interaction.commandName === 'get-id') {
+        const embed = new EmbedBuilder()
+            .setTitle('⚙️ Fresh Bay Tools - ID Finder')
+            .setColor(0x3498db)
+            .setDescription(`**Username:** ${username}\n**Roblox ID:** \`${robloxId}\``)
+            .setFooter({ text: 'Fresh Bay Tools System' })
+            .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
     }
 
     if (interaction.commandName === 'whitelist') {
@@ -123,16 +136,6 @@ client.on('interactionCreate', async interaction => {
         whitelistDatabase.delete(robloxId.toString());
         return interaction.editReply(`🗑️ **${username}** removed from whitelist.`);
     }
-
-    if (interaction.commandName === 'get-id') {
-        const embed = new EmbedBuilder()
-            .setTitle('⚙️ Fresh Bay Tools - ID Finder')
-            .setColor(0x3498db)
-            .setDescription(`**Username:** ${username}\n**Roblox ID:** \`${robloxId}\``)
-            .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
-        return interaction.editReply({ embeds: [embed] });
-    }
-
     if (interaction.commandName === 'ban') {
         const reason = interaction.options.getString('reason');
         banDatabase.set(robloxId.toString(), { username, reason, by: interaction.user.tag });
@@ -161,6 +164,7 @@ client.on('interactionCreate', async interaction => {
         banDatabase.delete(robloxId.toString());
         return interaction.editReply(`✅ **${username}** has been unbanned.`);
     }
+
     if (interaction.commandName === 'setrank') {
         const targetRank = interaction.options.getString('rank_name_or_id');
         try {
