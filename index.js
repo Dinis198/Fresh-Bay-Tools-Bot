@@ -66,12 +66,14 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
-// LIGAÇÃO DIRETA E OFICIAL À API DO ROBLOX SEM PROXIES INTERMEDIÁRIOS
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', { usernames: [username], excludeBannedUsers: false });
+        const res = await axios.post('https://roproxy.com', { 
+            usernames: [username],
+            excludeBannedUsers: false
+        });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id;
+            return res.data.data[0].id; // Mapeado o index de leitura da lista do proxy
         }
         return null;
     } catch (err) {
@@ -116,7 +118,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply(`✅ Your rank request has been successfully submitted to <#${targetChannel.id}>!`);
         } catch (err) {
             console.error(err);
-            return interaction.editReply(`❌ Failed to send request. Make sure the bot has access to that channel.`);
+            return interaction.editReply(`❌ Failed to send request. Make sure the bot has access to view that channel.`);
         }
     }
 
@@ -177,15 +179,14 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'setrank') {
         const targetRankId = interaction.options.getString('rank_id');
         try {
-            // Rota 100% oficial da Cloud do Roblox, sem intermediários públicos
-            const rolesRes = await axios.get(`https://roblox.com{ROBLOX_GROUP_ID}/roles`, {
+            const rolesRes = await axios.get(`https://roproxy.com{ROBLOX_GROUP_ID}/roles`, {
                 headers: { 'x-api-key': ROBLOX_API_KEY }
             });
             
             const targetRole = rolesRes.data.groupRoles.find(r => r.path.endsWith(`/roles/${targetRankId}`) || r.id === targetRankId);
             if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group configuration.`);
 
-            await axios.patch(`https://roblox.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
+            await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
                 { role: targetRole.path },
                 { headers: { 'x-api-key': ROBLOX_API_KEY, 'Content-Type': 'application/json' } }
             );
@@ -198,7 +199,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
             console.error("OpenCloud SetRank Error Details:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check if your API Key has Groups Permissions active.`); 
+            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud key scopes on Roblox Dashboard.`); 
         }
     }
 });
@@ -229,4 +230,4 @@ http.createServer((req, res) => {
     res.end();
 }).listen(process.env.PORT || 3000);
 
-client.listen(DISCORD_TOKEN);
+client.login(DISCORD_TOKEN); // <--- Corrigido de forma definitiva para iniciar a aplicação no Render
