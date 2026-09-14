@@ -6,7 +6,7 @@ const http = require('http');
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const ROBLOX_GROUP_ID = process.env.ROBLOX_GROUP_ID;
-const ROBLOX_COOKIE = process.env.ROBLOX_COOKIE;
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY; // Chave oficial sem cookies
 // ---------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -65,7 +65,6 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
-// BUSCA DIRETA À API OFICIAL COM ARRAY CORRIGIDO
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roblox.com', { 
@@ -73,7 +72,7 @@ async function getRobloxId(username) {
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Resolvido: Acesso cirúrgico ao primeiro item do array
+            return res.data.data[0].id; // Correção cirúrgica com [0] para ler a lista oficial
         }
         return null;
     } catch (err) {
@@ -92,7 +91,7 @@ client.on('interactionCreate', async interaction => {
     const robloxId = await getRobloxId(username);
     
     if (!robloxId) {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox or Roblox API is currently unavailable.`);
+        return interaction.editReply(`❌ User **${username}** not found on Roblox.`);
     }
 
     if (interaction.commandName === 'rank-request') {
@@ -172,37 +171,27 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'setrank') {
         const targetRank = interaction.options.getString('rank_name_or_id');
         try {
-            const rolesRes = await axios.get(`https://roproxy.com{ROBLOX_GROUP_ID}/roles`);
-            const targetRole = rolesRes.data.roles.find(r => r.name.toLowerCase() === targetRank.toLowerCase() || r.rank == targetRank);
-            if (!targetRole) return interaction.editReply(`❌ Rank **${targetRank}** not found.`);
-
-            const cookieString = `.ROBLOSECURITY=${ROBLOX_COOKIE}`;
-            let csrfToken = "";
+            const rolesRes = await axios.get(`https://roblox.com{ROBLOX_GROUP_ID}/roles`, {
+                headers: { 'x-api-key': ROBLOX_API_KEY }
+            });
             
-            // Força a obtenção de um token CSRF novo para limpar o erro 403 automaticamente
-            try {
-                await axios.post('https://roproxy.com', {}, { headers: { Cookie: cookieString } });
-            } catch (csrfError) {
-                csrfToken = csrfError.response?.headers['x-csrf-token'];
-            }
+            const targetRole = rolesRes.data.groupRoles.find(r => r.displayName.toLowerCase() === targetRank.toLowerCase() || r.id === targetRank);
+            if (!targetRole) return interaction.editReply(`❌ Rank **${targetRank}** not found in group.`);
 
-            if (!csrfToken) return interaction.editReply(`❌ Failed to bypass 403. Check if ROBLOX_COOKIE is typed completely with its initial warning message.`);
-
-            // Envio do rank atualizado utilizando o token capturado contra bloqueios
-            await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/users/${robloxId}`, 
-                { roleId: targetRole.id },
-                { headers: { Cookie: cookieString, 'X-CSRF-TOKEN': csrfToken } }
+            await axios.patch(`https://roblox.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
+                { role: targetRole.path },
+                { headers: { 'x-api-key': ROBLOX_API_KEY, 'Content-Type': 'application/json' } }
             );
 
             const embed = new EmbedBuilder()
                 .setTitle('🚀 Fresh Bay Tools - Rank Updated')
                 .setColor(0x2ecc71)
-                .setDescription(`Successfully updated **${username}** to rank **${targetRole.name}**!`)
+                .setDescription(`Successfully updated **${username}** to rank **${targetRole.displayName}**!`)
                 .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
-            console.error("SetRank Error Details:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Make sure your bot account is in the group and has permissions.`); 
+            console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
+            return interaction.editReply(`❌ Failed to update rank. Check if the API Key has Group Permissions active.`); 
         }
     }
 });
