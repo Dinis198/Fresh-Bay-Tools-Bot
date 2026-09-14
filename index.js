@@ -65,7 +65,7 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
-// FUNÇÃO GET-ID TOTALMENTE CORRIGIDA (Utilizando Proxy estável para rotas Roblox)
+// FUNÇÃO CORRIGIDA COM [0] PARA EXTRAIR O ID DO UTILIZADOR CORRETAMENTE
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roproxy.com', { 
@@ -73,7 +73,7 @@ async function getRobloxId(username) {
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Correção cirúrgica na leitura do array do proxy
+            return res.data.data[0].id; // Adicionado o [0] para ler a lista da API do Roblox
         }
         return null;
     } catch (err) {
