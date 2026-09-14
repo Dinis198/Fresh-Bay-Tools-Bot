@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ChannelType } = require('discord.js');
 const axios = require('axios');
 const http = require('http');
 
@@ -25,7 +25,8 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('rank-request')
-        .setDescription('Submit a rank promotion request.')
+        .setDescription('Submit a rank promotion request to a specific channel.')
+        .addChannelOption(opt => opt.setName('channel').setDescription('The channel where managers see requests').addChannelTypes(ChannelType.GuildText).setRequired(true))
         .addStringOption(opt => opt.setName('username').setDescription('Your Roblox Username').setRequired(true))
         .addStringOption(opt => opt.setName('rank').setDescription('The rank you are applying for').setRequired(true))
         .addStringOption(opt => opt.setName('reason').setDescription('Why do you deserve this rank?').setRequired(true)),
@@ -65,19 +66,21 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
-// SOLUÇÃO DO ERRO 500: LIGAÇÃO 100% DIRETA À API DO ROBLOX SEM DEPENDER DE PROXIES PÚBLICOS
+// Utiliza a API oficial de Cloud do Roblox para procurar utilizadores de forma 100% livre de bloqueios
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', { 
-            usernames: [username],
-            excludeBannedUsers: false
-        });
-        if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Lê com segurança o primeiro utilizador da resposta oficial
+        const res = await axios.post('https://roblox.com', 
+            { usernames: [username] },
+            { headers: { 'x-api-key': ROBLOX_API_KEY } }
+        );
+        if (res.data && res.data.users && res.data.users.length > 0) {
+            // Extrai o ID puro a partir do caminho oficial (ex: "users/12345" -> "12345")
+            const path = res.data.users[0].path;
+            return path.split('/')[1];
         }
         return null;
     } catch (err) {
-        console.error("Error in getRobloxId:", err.message);
+        console.error("Error in OpenCloud getRobloxId:", err.response?.data || err.message);
         return null;
     }
 }
@@ -92,10 +95,11 @@ client.on('interactionCreate', async interaction => {
     const robloxId = await getRobloxId(username);
     
     if (!robloxId) {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox or Roblox API is timed out.`);
+        return interaction.editReply(`❌ User **${username}** not found on Roblox. Verify your OpenCloud API Key permissions.`);
     }
 
     if (interaction.commandName === 'rank-request') {
+        const targetChannel = interaction.options.getChannel('channel');
         const targetRank = interaction.options.getString('rank');
         const reason = interaction.options.getString('reason');
 
@@ -112,7 +116,13 @@ client.on('interactionCreate', async interaction => {
             .setFooter({ text: 'Fresh Bay Tools Application System' })
             .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
+        try {
+            await targetChannel.send({ embeds: [embed] });
+            return interaction.editReply(`✅ Your rank request has been successfully submitted to <#${targetChannel.id}>!`);
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply(`❌ Failed to send request. Ensure the bot has permissions to write in that channel.`);
+        }
     }
 
     if (interaction.commandName === 'get-id') {
@@ -172,14 +182,16 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'setrank') {
         const targetRankId = interaction.options.getString('rank_id');
         try {
-            const rolesRes = await axios.get(`https://roproxy.com{ROBLOX_GROUP_ID}/roles`, {
+            // Chamada direta à API de Cloud do Roblox para coletar cargos
+            const rolesRes = await axios.get(`https://roblox.com{ROBLOX_GROUP_ID}/roles`, {
                 headers: { 'x-api-key': ROBLOX_API_KEY }
             });
             
             const targetRole = rolesRes.data.groupRoles.find(r => r.path.endsWith(`/roles/${targetRankId}`) || r.id === targetRankId);
-            if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group.`);
+            if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group configuration.`);
 
-            await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
+            // Alteração de cargo nativa sem cookies ou tokens temporários
+            await axios.patch(`https://roblox.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
                 { role: targetRole.path },
                 { headers: { 'x-api-key': ROBLOX_API_KEY, 'Content-Type': 'application/json' } }
             );
@@ -187,12 +199,12 @@ client.on('interactionCreate', async interaction => {
             const embed = new EmbedBuilder()
                 .setTitle('🚀 Fresh Bay Tools - Rank Updated')
                 .setColor(0x2ecc71)
-                .setDescription(`Successfully updated **${username}** to Rank ID **${targetRankId}**!`)
+                .setDescription(`Successfully updated **${username}** to Rank ID **${targetRankId}** (${targetRole.displayName})!`)
                 .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
-            console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check if your API Key has Group Write scopes.`); 
+            console.error("OpenCloud SetRank Error Details:", err.response?.data || err.message); 
+            return interaction.editReply(`❌ Failed to update rank. Verify your OpenCloud permissions on Roblox Dashboard.`); 
         }
     }
 });
