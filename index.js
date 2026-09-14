@@ -65,15 +65,15 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
-// FUNÇÃO CORRIGIDA COM [0] PARA EXTRAIR O ID DO UTILIZADOR CORRETAMENTE
+// FUNÇÃO ATUALIZADA PARA USAR A API OFICIAL DO ROBLOX SEM DEPENDER DE PROXY NAS BUSCAS DE ID
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roproxy.com', { 
+        const res = await axios.post('https://roblox.com', { 
             usernames: [username],
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Adicionado o [0] para ler a lista da API do Roblox
+            return res.data.data[0].id; // Retorna o ID numérico do primeiro utilizador encontrado
         }
         return null;
     } catch (err) {
@@ -92,7 +92,7 @@ client.on('interactionCreate', async interaction => {
     const robloxId = await getRobloxId(username);
     
     if (!robloxId) {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox or API Proxy is down.`);
+        return interaction.editReply(`❌ User **${username}** not found on Roblox or Roblox API is currently unavailable.`);
     }
 
     if (interaction.commandName === 'rank-request') {
