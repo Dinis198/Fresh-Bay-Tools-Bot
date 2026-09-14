@@ -66,20 +66,19 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
-// Chamada corrigida com cabeçalho de autorização explícito para evitar erros de autenticação na Cloud
+// NOVA FUNÇÃO CORRIGIDA USANDO A API DE USERNAMES DIRETA COMPATÍVEL COM O RENDER
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', 
-            { usernames: [username] },
-            { headers: { 'x-api-key': ROBLOX_API_KEY, 'Content-Type': 'application/json' } }
-        );
-        if (res.data && res.data.users && res.data.users.length > 0) {
-            const fullPath = res.data.users[0].path; 
-            return fullPath.split('/')[1]; 
+        const res = await axios.post('https://roblox.com', {
+            usernames: [username],
+            excludeBannedUsers: false
+        });
+        if (res.data && res.data.data && res.data.data.length > 0) {
+            return res.data.data[0].id; // Captura com precisão cirúrgica o ID numérico puro da primeira posição [0]
         }
         return null;
     } catch (err) {
-        console.error("OpenCloud getRobloxId Failure:", err.response?.data || err.message);
+        console.error("Error in getRobloxId API:", err.message);
         return null;
     }
 }
@@ -94,7 +93,7 @@ client.on('interactionCreate', async interaction => {
     const robloxId = await getRobloxId(username);
     
     if (!robloxId) {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox. Please verify your OpenCloud settings.`);
+        return interaction.editReply(`❌ User **${username}** not found on Roblox.`);
     }
 
     if (interaction.commandName === 'rank-request') {
@@ -201,7 +200,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
             console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud permissions on Roblox Dashboard.`); 
+            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud key permissions.`); 
         }
     }
 });
