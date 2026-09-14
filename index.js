@@ -6,7 +6,7 @@ const http = require('http');
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const ROBLOX_GROUP_ID = process.env.ROBLOX_GROUP_ID;
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY; // Chave oficial sem cookies
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY; 
 // ---------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -65,14 +65,15 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
+// CORREÇÃO COM INDICANDO O INDICE DA LISTA [0]
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', { 
+        const res = await axios.post('https://users.roblox.com/v1/usernames/users', { 
             usernames: [username],
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Correção cirúrgica com [0] para ler a lista oficial
+            return res.data.data[0].id; // <--- Linha corrigida de forma definitiva!
         }
         return null;
     } catch (err) {
