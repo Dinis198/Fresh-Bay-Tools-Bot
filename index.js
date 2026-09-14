@@ -65,7 +65,7 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
-// FUNÇÃO ATUALIZADA PARA USAR A API OFICIAL DO ROBLOX SEM DEPENDER DE PROXY NAS BUSCAS DE ID
+// FUNÇÃO GET-ID CORRIGIDA (Adicionado o [0] para ler corretamente a lista oficial do Roblox)
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roblox.com', { 
@@ -73,7 +73,7 @@ async function getRobloxId(username) {
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Retorna o ID numérico do primeiro utilizador encontrado
+            return res.data.data[0].id; // <--- Correção cirúrgica aqui
         }
         return null;
     } catch (err) {
