@@ -65,15 +65,15 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
-// Função corrigida com o uso do roproxy estável e leitura cirúrgica do array [0]
+// SOLUÇÃO DO ERRO 500: LIGAÇÃO 100% DIRETA À API DO ROBLOX SEM DEPENDER DE PROXIES PÚBLICOS
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roproxy.com', { 
+        const res = await axios.post('https://roblox.com', { 
             usernames: [username],
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Retorna com segurança o ID numérico puro
+            return res.data.data[0].id; // Lê com segurança o primeiro utilizador da resposta oficial
         }
         return null;
     } catch (err) {
@@ -92,7 +92,7 @@ client.on('interactionCreate', async interaction => {
     const robloxId = await getRobloxId(username);
     
     if (!robloxId) {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox.`);
+        return interaction.editReply(`❌ User **${username}** not found on Roblox or Roblox API is timed out.`);
     }
 
     if (interaction.commandName === 'rank-request') {
@@ -112,7 +112,6 @@ client.on('interactionCreate', async interaction => {
             .setFooter({ text: 'Fresh Bay Tools Application System' })
             .setTimestamp();
 
-        // Envia o embed diretamente para o mesmo canal onde o comando foi digitado para evitar erros de permissão de canais secundários
         return interaction.editReply({ embeds: [embed] });
     }
 
@@ -193,7 +192,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
             console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud settings.`); 
+            return interaction.editReply(`❌ Failed to update rank. Check if your API Key has Group Write scopes.`); 
         }
     }
 });
@@ -224,4 +223,4 @@ http.createServer((req, res) => {
     res.end();
 }).listen(process.env.PORT || 3000);
 
-client.login(DISCORD_TOKEN); // Corrigido de vez de .listen para .login
+client.login(DISCORD_TOKEN);
