@@ -5,8 +5,6 @@ const http = require('http');
 // --- CONFIGURATION ---
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const ROBLOX_GROUP_ID = process.env.ROBLOX_GROUP_ID;
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY; 
 // ---------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -16,12 +14,6 @@ const commands = [
         .setName('get-id')
         .setDescription('Get a Roblox ID from a Roblox username.')
         .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
-        
-    new SlashCommandBuilder()
-        .setName('setrank')
-        .setDescription('Remotely set someones group rank.')
-        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true))
-        .addStringOption(opt => opt.setName('rank_id').setDescription('Target Rank ID Number (e.g. 10, 50, 255)').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('rank-request')
@@ -66,15 +58,15 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
-// NOVA FUNÇÃO CORRIGIDA USANDO A API DE USERNAMES DIRETA COMPATÍVEL COM O RENDER
+// FUNÇÃO DE ID TOTALMENTE ESTÁVEL E ATUALIZADA (Sem passar por chaves ou proxies bloqueados)
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', {
+        const res = await axios.post('https://roblox.com', { 
             usernames: [username],
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Captura com precisão cirúrgica o ID numérico puro da primeira posição [0]
+            return res.data.data[0].id; // Correção cirúrgica com o índice [0] para ler a lista pública do Roblox
         }
         return null;
     } catch (err) {
@@ -119,7 +111,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply(`✅ Your rank request has been successfully submitted to <#${targetChannel.id}>!`);
         } catch (err) {
             console.error(err);
-            return interaction.editReply(`❌ Failed to send request. Ensure the bot has permission to post in that channel.`);
+            return interaction.editReply(`❌ Failed to send request. Make sure the bot has permission to post in that channel.`);
         }
     }
 
@@ -175,33 +167,6 @@ client.on('interactionCreate', async interaction => {
         if (!banDatabase.has(robloxId.toString())) return interaction.editReply(`❌ **${username}** is not banned.`);
         banDatabase.delete(robloxId.toString());
         return interaction.editReply(`✅ **${username}** has been unbanned.`);
-    }
-
-    if (interaction.commandName === 'setrank') {
-        const targetRankId = interaction.options.getString('rank_id');
-        try {
-            const rolesRes = await axios.get(`https://roblox.com{ROBLOX_GROUP_ID}/roles`, {
-                headers: { 'x-api-key': ROBLOX_API_KEY }
-            });
-            
-            const targetRole = rolesRes.data.groupRoles.find(r => r.path.endsWith(`/roles/${targetRankId}`) || r.id === targetRankId);
-            if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group configuration.`);
-
-            await axios.patch(`https://roblox.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
-                { role: targetRole.path },
-                { headers: { 'x-api-key': ROBLOX_API_KEY, 'Content-Type': 'application/json' } }
-            );
-
-            const embed = new EmbedBuilder()
-                .setTitle('🚀 Fresh Bay Tools - Rank Updated')
-                .setColor(0x2ecc71)
-                .setDescription(`Successfully updated **${username}** to Rank ID **${targetRankId}** (${targetRole.displayName})!`)
-                .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
-            return interaction.editReply({ embeds: [embed] });
-        } catch (err) { 
-            console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud key permissions.`); 
-        }
     }
 });
 
