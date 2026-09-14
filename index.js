@@ -65,7 +65,7 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
-// FUNÇÃO GET-ID CORRIGIDA COM [0] PARA LER O ARRAY CORRETO DO ROBLOX
+// BUSCA DIRETA À API OFICIAL COM ARRAY CORRIGIDO
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roblox.com', { 
@@ -73,7 +73,7 @@ async function getRobloxId(username) {
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // <--- Correção definitiva aqui
+            return res.data.data[0].id; // Resolvido: Acesso cirúrgico ao primeiro item do array
         }
         return null;
     } catch (err) {
@@ -178,14 +178,17 @@ client.on('interactionCreate', async interaction => {
 
             const cookieString = `.ROBLOSECURITY=${ROBLOX_COOKIE}`;
             let csrfToken = "";
+            
+            // Força a obtenção de um token CSRF novo para limpar o erro 403 automaticamente
             try {
                 await axios.post('https://roproxy.com', {}, { headers: { Cookie: cookieString } });
             } catch (csrfError) {
                 csrfToken = csrfError.response?.headers['x-csrf-token'];
             }
 
-            if (!csrfToken) return interaction.editReply(`❌ Failed to retrieve CSRF token. Check if ROBLOX_COOKIE is valid.`);
+            if (!csrfToken) return interaction.editReply(`❌ Failed to bypass 403. Check if ROBLOX_COOKIE is typed completely with its initial warning message.`);
 
+            // Envio do rank atualizado utilizando o token capturado contra bloqueios
             await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/users/${robloxId}`, 
                 { roleId: targetRole.id },
                 { headers: { Cookie: cookieString, 'X-CSRF-TOKEN': csrfToken } }
@@ -199,7 +202,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
             console.error("SetRank Error Details:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check Render logs for error details.`); 
+            return interaction.editReply(`❌ Failed to update rank. Make sure your bot account is in the group and has permissions.`); 
         }
     }
 });
