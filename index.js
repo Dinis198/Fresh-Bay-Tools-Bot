@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const http = require('http');
 
@@ -13,17 +13,6 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('ban')
-        .setDescription('Ban a user from all Fresh Bay games.')
-        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true))
-        .addStringOption(opt => opt.setName('reason').setDescription('Reason for the ban').setRequired(true)),
-    
-    new SlashCommandBuilder()
-        .setName('get-ban')
-        .setDescription('Gets a ban issued.')
-        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
-        
-    new SlashCommandBuilder()
         .setName('get-id')
         .setDescription('Get a Roblox ID from a Roblox username.')
         .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
@@ -33,16 +22,10 @@ const commands = [
         .setDescription('Remotely set someones group rank.')
         .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true))
         .addStringOption(opt => opt.setName('rank_id').setDescription('Target Rank ID Number (e.g. 10, 50, 255)').setRequired(true)),
-        
-    new SlashCommandBuilder()
-        .setName('unban')
-        .setDescription('Unban a user from all Fresh Bay games.')
-        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('rank-request')
-        .setDescription('Submit a rank promotion request to a specific channel.')
-        .addChannelOption(opt => opt.setName('channel').setDescription('The channel where managers see requests').addChannelTypes(ChannelType.GuildText).setRequired(true))
+        .setDescription('Submit a rank promotion request.')
         .addStringOption(opt => opt.setName('username').setDescription('Your Roblox Username').setRequired(true))
         .addStringOption(opt => opt.setName('rank').setDescription('The rank you are applying for').setRequired(true))
         .addStringOption(opt => opt.setName('reason').setDescription('Why do you deserve this rank?').setRequired(true)),
@@ -55,6 +38,22 @@ const commands = [
     new SlashCommandBuilder()
         .setName('unwhitelist')
         .setDescription('Remove a user from the Fresh Bay game whitelist.')
+        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('Ban a user from all Fresh Bay games.')
+        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true))
+        .addStringOption(opt => opt.setName('reason').setDescription('Reason for the ban').setRequired(true)),
+    
+    new SlashCommandBuilder()
+        .setName('get-ban')
+        .setDescription('Gets a ban issued.')
+        .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('unban')
+        .setDescription('Unban a user from all Fresh Bay games.')
         .addStringOption(opt => opt.setName('username').setDescription('Roblox Username').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
@@ -66,6 +65,7 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error('Command Registration Error:', e); }
 })();
 
+// Função corrigida com o uso do roproxy estável e leitura cirúrgica do array [0]
 async function getRobloxId(username) {
     try {
         const res = await axios.post('https://roproxy.com', { 
@@ -73,11 +73,11 @@ async function getRobloxId(username) {
             excludeBannedUsers: false
         });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id; // Mapeado o index de leitura da lista do proxy
+            return res.data.data[0].id; // Retorna com segurança o ID numérico puro
         }
         return null;
     } catch (err) {
-        console.error("Error in getRobloxId API:", err.message);
+        console.error("Error in getRobloxId:", err.message);
         return null;
     }
 }
@@ -96,7 +96,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'rank-request') {
-        const targetChannel = interaction.options.getChannel('channel');
         const targetRank = interaction.options.getString('rank');
         const reason = interaction.options.getString('reason');
 
@@ -113,13 +112,8 @@ client.on('interactionCreate', async interaction => {
             .setFooter({ text: 'Fresh Bay Tools Application System' })
             .setTimestamp();
 
-        try {
-            await targetChannel.send({ embeds: [embed] });
-            return interaction.editReply(`✅ Your rank request has been successfully submitted to <#${targetChannel.id}>!`);
-        } catch (err) {
-            console.error(err);
-            return interaction.editReply(`❌ Failed to send request. Make sure the bot has access to view that channel.`);
-        }
+        // Envia o embed diretamente para o mesmo canal onde o comando foi digitado para evitar erros de permissão de canais secundários
+        return interaction.editReply({ embeds: [embed] });
     }
 
     if (interaction.commandName === 'get-id') {
@@ -184,7 +178,7 @@ client.on('interactionCreate', async interaction => {
             });
             
             const targetRole = rolesRes.data.groupRoles.find(r => r.path.endsWith(`/roles/${targetRankId}`) || r.id === targetRankId);
-            if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group configuration.`);
+            if (!targetRole) return interaction.editReply(`❌ Rank ID \`${targetRankId}\` not found in group.`);
 
             await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/memberships/${robloxId}`, 
                 { role: targetRole.path },
@@ -194,12 +188,12 @@ client.on('interactionCreate', async interaction => {
             const embed = new EmbedBuilder()
                 .setTitle('🚀 Fresh Bay Tools - Rank Updated')
                 .setColor(0x2ecc71)
-                .setDescription(`Successfully updated **${username}** to Rank ID **${targetRankId}** (${targetRole.displayName})!`)
+                .setDescription(`Successfully updated **${username}** to Rank ID **${targetRankId}**!`)
                 .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
             return interaction.editReply({ embeds: [embed] });
         } catch (err) { 
-            console.error("OpenCloud SetRank Error Details:", err.response?.data || err.message); 
-            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud key scopes on Roblox Dashboard.`); 
+            console.error("OpenCloud SetRank Error:", err.response?.data || err.message); 
+            return interaction.editReply(`❌ Failed to update rank. Check your OpenCloud settings.`); 
         }
     }
 });
@@ -230,4 +224,4 @@ http.createServer((req, res) => {
     res.end();
 }).listen(process.env.PORT || 3000);
 
-client.login(DISCORD_TOKEN); // <--- Corrigido de forma definitiva para iniciar a aplicação no Render
+client.login(DISCORD_TOKEN); // Corrigido de vez de .listen para .login
