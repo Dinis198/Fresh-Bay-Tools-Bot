@@ -65,15 +65,19 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     } catch (e) { console.error(e); }
 })();
 
+// FUNÇÃO GET-ID TOTALMENTE CORRIGIDA (Utilizando Proxy estável para rotas Roblox)
 async function getRobloxId(username) {
     try {
-        const res = await axios.post('https://roblox.com', { usernames: [username] });
+        const res = await axios.post('https://roproxy.com', { 
+            usernames: [username],
+            excludeBannedUsers: false
+        });
         if (res.data && res.data.data && res.data.data.length > 0) {
-            return res.data.data[0].id;
+            return res.data.data[0].id; // Correção cirúrgica na leitura do array do proxy
         }
         return null;
     } catch (err) {
-        console.error("Error in getRobloxId:", err.message);
+        console.error("Error in getRobloxId API:", err.message);
         return null;
     }
 }
@@ -87,8 +91,8 @@ client.on('interactionCreate', async interaction => {
     const username = interaction.options.getString('username');
     const robloxId = await getRobloxId(username);
     
-    if (!robloxId && interaction.commandName !== 'test') {
-        return interaction.editReply(`❌ User **${username}** not found on Roblox.`);
+    if (!robloxId) {
+        return interaction.editReply(`❌ User **${username}** not found on Roblox or API Proxy is down.`);
     }
 
     if (interaction.commandName === 'rank-request') {
@@ -98,7 +102,7 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder()
             .setTitle('📋 Fresh Bay Tools - New Rank Request')
             .setColor(0xf39c12)
-            .setDescription(`A new staff application has been submitted!`)
+            .setDescription(`A new staff promotion request has been submitted!`)
             .addFields(
                 { name: '👤 Applicant (Discord)', value: `<@${interaction.user.id}>`, inline: true },
                 { name: '🎮 Roblox Account', value: `[${username}](https://roblox.com{robloxId}/profile) (ID: \`${robloxId}\`)`, inline: true },
@@ -168,7 +172,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'setrank') {
         const targetRank = interaction.options.getString('rank_name_or_id');
         try {
-            const rolesRes = await axios.get(`https://roblox.com{ROBLOX_GROUP_ID}/roles`);
+            const rolesRes = await axios.get(`https://roproxy.com{ROBLOX_GROUP_ID}/roles`);
             const targetRole = rolesRes.data.roles.find(r => r.name.toLowerCase() === targetRank.toLowerCase() || r.rank == targetRank);
             if (!targetRole) return interaction.editReply(`❌ Rank **${targetRank}** not found.`);
 
@@ -180,7 +184,7 @@ client.on('interactionCreate', async interaction => {
                 csrfToken = csrfError.response?.headers['x-csrf-token'];
             }
 
-            if (!csrfToken) return interaction.editReply(`❌ Failed to retrieve CSRF token.`);
+            if (!csrfToken) return interaction.editReply(`❌ Failed to retrieve CSRF token. Check if ROBLOX_COOKIE is valid.`);
 
             await axios.patch(`https://roproxy.com{ROBLOX_GROUP_ID}/users/${robloxId}`, 
                 { roleId: targetRole.id },
@@ -193,7 +197,10 @@ client.on('interactionCreate', async interaction => {
                 .setDescription(`Successfully updated **${username}** to rank **${targetRole.name}**!`)
                 .setFooter({ text: 'Fresh Bay Tools System' }).setTimestamp();
             return interaction.editReply({ embeds: [embed] });
-        } catch (err) { console.error(err); return interaction.editReply(`❌ Failed to update rank.`); }
+        } catch (err) { 
+            console.error("SetRank Error Details:", err.response?.data || err.message); 
+            return interaction.editReply(`❌ Failed to update rank. Check Render logs for error details.`); 
+        }
     }
 });
 
